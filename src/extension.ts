@@ -34,7 +34,9 @@ import { ZoweExplorerApiRegister } from "./api/ZoweExplorerApiRegister";
 import { KeytarCredentialManager } from "./KeytarCredentialManager";
 import { linkProfileDialog } from "./utils/profileLink";
 import * as nls from "vscode-nls";
-const localize = nls.config({messageFormat: nls.MessageFormat.file})();
+import { ZoweExplorerExtender } from "./ZoweExplorerExtender";
+
+const localize = nls.config({ messageFormat: nls.MessageFormat.file })();
 
 /**
  * The function that runs when the extension is loaded
@@ -128,9 +130,16 @@ export async function activate(context: vscode.ExtensionContext): Promise<ZoweEx
             preferencesTempPath = updatedPreferencesTempPath;
         }
     });
-    if (datasetProvider) { initDatasetProvider(context, datasetProvider); }
-    if (ussFileProvider) { initUSSProvider(context, ussFileProvider); }
-    if (jobsProvider) { initJobsProvider(context, jobsProvider); }
+
+    if (datasetProvider) {
+        initDatasetProvider(context, datasetProvider);
+    }
+    if (ussFileProvider) {
+        initUSSProvider(context, ussFileProvider);
+    }
+    if (jobsProvider) {
+        initJobsProvider(context, jobsProvider);
+    }
     if (datasetProvider || ussFileProvider) {
         vscode.commands.registerCommand("zowe.openRecentMember", () => sharedActions.openRecentMemberPrompt(datasetProvider, ussFileProvider));
         vscode.commands.registerCommand("zowe.searchInAllLoadedItems",
@@ -163,9 +172,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<ZoweEx
         vscode.commands.registerCommand("zowe.jobs.deleteProfile", async (node) =>
             Profiles.getInstance().deleteProfile(datasetProvider, ussFileProvider, jobsProvider, node));
     }
-
     // return the Extension's API to other extensions that want to register their APIs.
-    return ZoweExplorerApiRegister.getInstance();
+    const register = ZoweExplorerApiRegister.getInstance();
+    await ZoweExplorerExtender.getInstance().reloadProfiles();
+    return register;
 }
 
 function initDatasetProvider(context: vscode.ExtensionContext, datasetProvider: IZoweTree<IZoweDatasetTreeNode>) {

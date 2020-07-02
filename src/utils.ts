@@ -66,8 +66,8 @@ export function errorHandling(errorDetails: any, label?: string, moreInfo?: stri
  * Refresh Profile and Session
  * @param {sessNode} IZoweTreeNode
  *************************************************************************************************************/
-export function refreshTree(sessNode: IZoweTreeNode) {
-    const allProf = Profiles.getInstance().getProfiles();
+export async function refreshTree(sessNode: IZoweTreeNode) {
+    const allProf = await Profiles.getInstance().getProfiles();
     for (const profNode of allProf) {
         if (sessNode.getProfileName() === profNode.name) {
             setProfile(sessNode, profNode.profile);

@@ -106,7 +106,7 @@ export class Profiles {
         return this.defaultProfileByType.get(type);
     }
 
-    public getProfiles(type: string = "zosmf"): IProfileLoaded[] {
+    public async getProfiles(type: string = "zosmf"): Promise<IProfileLoaded[]> {
         return this.profilesByType.get(type);
     }
 

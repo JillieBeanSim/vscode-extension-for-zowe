@@ -15,6 +15,7 @@ import { IZoweTreeNode } from "./api/IZoweTreeNode";
 import { ZoweExplorerApi } from "./api/ZoweExplorerApi";
 import { Profiles } from "./Profiles";
 import { getProfile, getLinkedProfile } from "./utils/profileLink";
+import { ZoweExplorerApiRegister } from "./api/ZoweExplorerApiRegister";
 
 /**
  * The Zowe Explorer API Register singleton that gets exposed to other VS Code
@@ -71,7 +72,26 @@ export class ZoweExplorerExtender implements ZoweExplorerApi.IApiExplorerExtende
      * to make them automatically appears in the Explorer drop-
      * down dialogs.
      */
-    public async reloadProfiles(): Promise<void> {
+    public async reloadProfiles(type?: string): Promise<void> {
+        // Get profile types
+
+        // if (!type) {
+        const profTypes = ZoweExplorerApiRegister.getInstance().registeredApiTypes();
+            // tslint:disable-next-line:no-console
+        console.log(profTypes);
+        const typeArray = Array.from(profTypes);
+
+        for (const val of typeArray) {
+                const profs = (await Profiles.getInstance().getProfiles(val));
+                // tslint:disable-next-line:no-console
+                console.log(profs);
+            }
+        // } else {
+        //     const profs = (await Profiles.getInstance().getProfiles(type));
+        //     // tslint:disable-next-line:no-console
+        //     console.log(JSON.stringify(profs));
+        // }
+
         // sequentially reload the internal profiles cache to satisfy all the newly added profile types
         ZoweExplorerExtender.refreshProfilesQueue.add( () => Profiles.getInstance().refresh());
     }
