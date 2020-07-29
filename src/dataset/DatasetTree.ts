@@ -243,7 +243,11 @@ export class DatasetTree extends ZoweTreeProvider implements IZoweTree<IZoweData
                     }
                 }
             }
+            // tslint:disable-next-line:no-console
+            console.log(profileType + "+" + this.mSessionNodes.length);
             if (this.mSessionNodes.length === 1) {
+                // tslint:disable-next-line:no-console
+                console.log("stepped into if for default " + profileType);
                 this.addSingleSession(Profiles.getInstance().getDefaultProfile(profileType));
             }
         }

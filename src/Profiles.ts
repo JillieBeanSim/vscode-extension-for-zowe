@@ -123,6 +123,8 @@ export class Profiles {
     }
 
     public getDefaultProfile(type: string = "zosmf"): IProfileLoaded {
+        // tslint:disable-next-line:no-console
+        console.log(type);
         return this.defaultProfileByType.get(type);
     }
 

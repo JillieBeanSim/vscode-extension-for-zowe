@@ -16,6 +16,7 @@ import { ZoweExplorerApi } from "./api/ZoweExplorerApi";
 import { Profiles } from "./Profiles";
 import { getProfile, getLinkedProfile } from "./utils/profileLink";
 import { IZoweTree } from "./api/IZoweTree";
+import { ZoweExplorerApiRegister } from "./api/ZoweExplorerApiRegister";
 
 /**
  * The Zowe Explorer API Register singleton that gets exposed to other VS Code
@@ -94,11 +95,39 @@ export class ZoweExplorerExtender implements ZoweExplorerApi.IApiExplorerExtende
      * @param profileType optional profile type that the extender can specify
      */
     public async reloadProfiles(profileType?: string): Promise<void> {
+        let types: string[];
         // sequentially reload the internal profiles cache to satisfy all the newly added profile types
         await ZoweExplorerExtender.refreshProfilesQueue.add( () => Profiles.getInstance().refresh());
+        if (profileType === undefined) {
+            const profTypes = ZoweExplorerApiRegister.getInstance().registeredApiTypes();
+            types = Array.from(profTypes);
+        }
+        const getMvsStatus = await ZoweExplorerApiRegister.getInstance().registeredMvsApiTypes();
+        // tslint:disable-next-line:no-console
+        console.log(getMvsStatus);
+        const getUssStatus = await ZoweExplorerApiRegister.getInstance().registeredUssApiTypes();
+        // tslint:disable-next-line:no-console
+        console.log(getUssStatus);
+        const getJesStatus = await ZoweExplorerApiRegister.getInstance().registeredJesApiTypes();
+        // tslint:disable-next-line:no-console
+        console.log(getJesStatus);
         // profileType is used to load a default extender profile if no other profiles are populating the trees
-        this.datasetProvider?.addSession(undefined, profileType);
-        this.ussFileProvider?.addSession(undefined, profileType);
-        this.jobsProvider?.addSession(undefined, profileType);
+        for (const val of types) {
+            for (const item of getMvsStatus) {
+                if (val === item) {
+                    this.datasetProvider?.addSession(undefined, val);
+                }
+            }
+            for (const item of getUssStatus) {
+                if (val === item) {
+                    this.ussFileProvider?.addSession(undefined, val);
+                }
+            }
+            for (const item of getJesStatus) {
+                if (val === item) {
+                    this.jobsProvider?.addSession(undefined, val);
+                }
+            }
+        }
     }
 }
