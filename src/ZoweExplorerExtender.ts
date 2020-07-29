@@ -96,12 +96,6 @@ export class ZoweExplorerExtender implements ZoweExplorerApi.IApiExplorerExtende
      */
     public async reloadProfiles(profileType?: string): Promise<void> {
         let types: string[];
-        // sequentially reload the internal profiles cache to satisfy all the newly added profile types
-        await ZoweExplorerExtender.refreshProfilesQueue.add( () => Profiles.getInstance().refresh());
-        if (profileType === undefined) {
-            const profTypes = ZoweExplorerApiRegister.getInstance().registeredApiTypes();
-            types = Array.from(profTypes);
-        }
         const getMvsStatus = await ZoweExplorerApiRegister.getInstance().registeredMvsApiTypes();
         // tslint:disable-next-line:no-console
         console.log(getMvsStatus);
@@ -112,22 +106,32 @@ export class ZoweExplorerExtender implements ZoweExplorerApi.IApiExplorerExtende
         // tslint:disable-next-line:no-console
         console.log(getJesStatus);
         // profileType is used to load a default extender profile if no other profiles are populating the trees
-        for (const val of types) {
-            for (const item of getMvsStatus) {
-                if (val === item) {
-                    this.datasetProvider?.addSession(undefined, val);
+        // sequentially reload the internal profiles cache to satisfy all the newly added profile types
+        await ZoweExplorerExtender.refreshProfilesQueue.add( () => Profiles.getInstance().refresh());
+        if (profileType === undefined) {
+            const profTypes = ZoweExplorerApiRegister.getInstance().registeredApiTypes();
+            types = Array.from(profTypes);
+            for (const val of types) {
+                for (const item of getMvsStatus) {
+                    if (val === item) {
+                        this.datasetProvider?.addSession(undefined, val);
+                    }
+                }
+                for (const item of getUssStatus) {
+                    if (val === item) {
+                        this.ussFileProvider?.addSession(undefined, val);
+                    }
+                }
+                for (const item of getJesStatus) {
+                    if (val === item) {
+                        this.jobsProvider?.addSession(undefined, val);
+                    }
                 }
             }
-            for (const item of getUssStatus) {
-                if (val === item) {
-                    this.ussFileProvider?.addSession(undefined, val);
-                }
-            }
-            for (const item of getJesStatus) {
-                if (val === item) {
-                    this.jobsProvider?.addSession(undefined, val);
-                }
-            }
+        } else {
+            this.datasetProvider?.addSession(undefined, profileType);
+            this.ussFileProvider?.addSession(undefined, profileType);
+            this.jobsProvider?.addSession(undefined, profileType);
         }
     }
 }
