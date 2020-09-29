@@ -19,7 +19,7 @@ import { filterTreeByString } from "../shared/utils";
 import { FilterItem, resolveQuickPickHelper, FilterDescriptor } from "../utils";
 import * as contextually from "../shared/context";
 import * as nls from "vscode-nls";
-import { getIconByNode, getIconById, IconId } from "../generators/icons";
+import { getIconById, IconId } from "../generators/icons";
 import { Profiles } from "../Profiles";
 
 // Set up localization

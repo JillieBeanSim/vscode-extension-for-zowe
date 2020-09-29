@@ -16,7 +16,7 @@ import * as zowe from "@zowe/cli";
 import * as globals from "../globals";
 import * as path from "path";
 import { errorHandling, FilterItem, resolveQuickPickHelper } from "../utils";
-import { labelRefresh, refreshTree, getDocumentFilePath, concatChildNodes, checkForAddedSuffix, willForceUpload, filterTreeByString } from "../shared/utils";
+import * as utils from "../shared/utils";
 import { Profiles, ValidProfileEnum } from "../Profiles";
 import { ZoweExplorerApiRegister } from "../api/ZoweExplorerApiRegister";
 import { IZoweTree } from "../api/IZoweTree";
@@ -26,7 +26,7 @@ import { IZoweDatasetTreeNode, IZoweTreeNode, IZoweNodeType } from "../api/IZowe
 import { ZoweDatasetNode } from "./ZoweDatasetNode";
 import { DatasetTree } from "./DatasetTree";
 import * as contextually from "../shared/context";
-import { returnIconState, resetValidationSettings } from "../shared/actions";
+import * as shared from "../shared/actions";
 import { setFileSaved } from "../utils/workspace";
 
 import * as nls from "vscode-nls";
@@ -45,12 +45,12 @@ export async function refreshAll(datasetProvider: IZoweTree<IZoweDatasetTreeNode
     datasetProvider.mSessionNodes.forEach(async (sessNode) => {
         const setting = await PersistentFilters.getDirectValue("Zowe-Automatic-Validation") as boolean;
         if (contextually.isSessionNotFav(sessNode)) {
-            labelRefresh(sessNode);
+            utils.labelRefresh(sessNode);
             sessNode.children = [];
             sessNode.dirty = true;
-            refreshTree(sessNode);
-            resetValidationSettings(sessNode, setting);
-            returnIconState(sessNode);
+            utils.refreshTree(sessNode);
+            shared.resetValidationSettings(sessNode, setting);
+            shared.returnIconState(sessNode);
         }
     });
     datasetProvider.refresh();
@@ -210,8 +210,7 @@ export async function createMember(parent: IZoweDatasetTreeNode, datasetProvider
  */
 export async function openPS(node: IZoweDatasetTreeNode, previewMember: boolean, datasetProvider?: IZoweTree<IZoweDatasetTreeNode>) {
     if (datasetProvider) { await datasetProvider.checkCurrentProfile(node); }
-    if ((Profiles.getInstance().validProfile === ValidProfileEnum.VALID) ||
-    (Profiles.getInstance().validProfile === ValidProfileEnum.UNVERIFIED)) {
+    if (!(Profiles.getInstance().validProfile === ValidProfileEnum.INVALID)) {
         try {
             let label: string;
             switch (true) {
@@ -231,7 +230,7 @@ export async function openPS(node: IZoweDatasetTreeNode, previewMember: boolean,
             }
             globals.LOG.debug(localize("openPS.log.debug.openDataSet", "opening physical sequential data set from label ") + label);
             // if local copy exists, open that instead of pulling from mainframe
-            const documentFilePath = getDocumentFilePath(label, node);
+            const documentFilePath = utils.getDocumentFilePath(label, node);
             if (!fs.existsSync(documentFilePath)) {
                 const response = await vscode.window.withProgress({
                     location: vscode.ProgressLocation.Notification,
@@ -246,7 +245,7 @@ export async function openPS(node: IZoweDatasetTreeNode, previewMember: boolean,
                 });
                 node.setEtag(response.apiResponse.etag);
             }
-            const document = await vscode.workspace.openTextDocument(getDocumentFilePath(label, node));
+            const document = await vscode.workspace.openTextDocument(utils.getDocumentFilePath(label, node));
             if (previewMember === true) {
                 await vscode.window.showTextDocument(document);
             } else {
@@ -316,8 +315,7 @@ export async function createFile(node: IZoweDatasetTreeNode, datasetProvider: IZ
     ];
 
     datasetProvider.checkCurrentProfile(node);
-    if ((Profiles.getInstance().validProfile === ValidProfileEnum.VALID) ||
-    (Profiles.getInstance().validProfile === ValidProfileEnum.UNVERIFIED)) {
+    if (!(Profiles.getInstance().validProfile === ValidProfileEnum.INVALID)) {
         // get data set type
         const type = await vscode.window.showQuickPick(types, quickPickOptions);
         if (type == null) {
@@ -378,8 +376,7 @@ export async function createFile(node: IZoweDatasetTreeNode, datasetProvider: IZ
  */
 export async function showDSAttributes(parent: IZoweDatasetTreeNode, datasetProvider: IZoweTree<IZoweDatasetTreeNode>) {
     await datasetProvider.checkCurrentProfile(parent);
-    if ((Profiles.getInstance().validProfile === ValidProfileEnum.VALID) ||
-    (Profiles.getInstance().validProfile === ValidProfileEnum.UNVERIFIED)) {
+    if (!(Profiles.getInstance().validProfile === ValidProfileEnum.INVALID)) {
         const label = parent.label.trim();
         globals.LOG.debug(localize("showDSAttributes.debug", "showing attributes of data set ") + label);
         let attributes: any;
@@ -488,8 +485,7 @@ export async function submitJcl(datasetProvider: IZoweTree<IZoweDatasetTreeNode>
         return;
     }
     await Profiles.getInstance().checkCurrentProfile(sessProfile);
-    if ((Profiles.getInstance().validProfile === ValidProfileEnum.VALID) ||
-    (Profiles.getInstance().validProfile === ValidProfileEnum.UNVERIFIED)){
+    if (!(Profiles.getInstance().validProfile === ValidProfileEnum.INVALID)){
         try {
             const job = await ZoweExplorerApiRegister.getJesApi(sessProfile).submitJcl(doc.getText());
             const args = [sessProfileName, job.jobid];
@@ -516,8 +512,7 @@ export async function submitMember(node: IZoweTreeNode) {
     let sessProfile: IProfileLoaded;
     const profiles = Profiles.getInstance();
     await profiles.checkCurrentProfile(node.getProfile());
-    if ((Profiles.getInstance().validProfile === ValidProfileEnum.VALID) ||
-    (Profiles.getInstance().validProfile === ValidProfileEnum.UNVERIFIED)) {
+    if (!(Profiles.getInstance().validProfile === ValidProfileEnum.INVALID)) {
         switch (true) {
              // For favorited or non-favorited sequential DS:
             case contextually.isFavorite(node):
@@ -587,8 +582,7 @@ export async function deleteDataset(node: IZoweTreeNode, datasetProvider: IZoweT
             throw Error(localize("deleteDataSet.invalidNode.error", "deleteDataSet() called from invalid node."));
         }
         await datasetProvider.checkCurrentProfile(node);
-        if ((Profiles.getInstance().validProfile === ValidProfileEnum.VALID) ||
-        (Profiles.getInstance().validProfile === ValidProfileEnum.UNVERIFIED)) {
+        if (!(Profiles.getInstance().validProfile === ValidProfileEnum.INVALID)) {
             await ZoweExplorerApiRegister.getMvsApi(node.getProfile()).deleteDataSet(label);
         } else {
             return;
@@ -632,7 +626,7 @@ export async function deleteDataset(node: IZoweTreeNode, datasetProvider: IZoweT
     }
 
     // remove local copy of file
-    const fileName = getDocumentFilePath(label, node);
+    const fileName = utils.getDocumentFilePath(label, node);
     try {
         if (fs.existsSync(fileName)) {
             fs.unlinkSync(fileName);
@@ -664,7 +658,7 @@ export async function refreshPS(node: IZoweDatasetTreeNode) {
             default:
                 throw Error(localize("refreshPS.error.invalidNode", "refreshPS() called from invalid node."));
         }
-        const documentFilePath = getDocumentFilePath(label, node);
+        const documentFilePath = utils.getDocumentFilePath(label, node);
         const prof = node.getProfile();
         const response = await ZoweExplorerApiRegister.getMvsApi(prof).getContents(label, {
             file: documentFilePath,
@@ -759,8 +753,7 @@ export async function copyDataSet(node: IZoweNodeType) {
  */
 export async function hMigrateDataSet(node: ZoweDatasetNode) {
     await Profiles.getInstance().checkCurrentProfile(node.getProfile());
-    if ((Profiles.getInstance().validProfile === ValidProfileEnum.VALID) ||
-    (Profiles.getInstance().validProfile === ValidProfileEnum.UNVERIFIED)){
+    if (!(Profiles.getInstance().validProfile === ValidProfileEnum.INVALID)){
         const { dataSetName } = dsUtils.getNodeLabels(node);
         vscode.window.showInformationMessage(localize("hMigrate.requestSent1", "Migration of dataset: ") + dataSetName +
         localize("hMigrate.requestSent2", " requested."));
@@ -779,8 +772,7 @@ export async function hMigrateDataSet(node: ZoweDatasetNode) {
  */
 export async function hRecallDataSet(node: ZoweDatasetNode) {
     await Profiles.getInstance().checkCurrentProfile(node.getProfile());
-    if ((Profiles.getInstance().validProfile === ValidProfileEnum.VALID) ||
-    (Profiles.getInstance().validProfile === ValidProfileEnum.UNVERIFIED)) {
+    if (!(Profiles.getInstance().validProfile === ValidProfileEnum.INVALID)) {
         const { dataSetName } = dsUtils.getNodeLabels(node);
         vscode.window.showInformationMessage(localize("hRecall.requestSent1", "Recall of dataset: ") + dataSetName +
         localize("hRecall.requestSent2", " requested."));
@@ -806,8 +798,7 @@ export async function pasteDataSet(node: IZoweDatasetTreeNode, datasetProvider: 
     let beforeMemberName;
 
     await Profiles.getInstance().checkCurrentProfile(node.getProfile());
-    if ((Profiles.getInstance().validProfile === ValidProfileEnum.VALID) ||
-    (Profiles.getInstance().validProfile === ValidProfileEnum.UNVERIFIED)) {
+    if (!(Profiles.getInstance().validProfile === ValidProfileEnum.INVALID)) {
         if (node.contextValue.includes(globals.DS_PDS_CONTEXT)) {
             memberName = await vscode.window.showInputBox({placeHolder: localize("renameDataSet.name", "Name of Data Set Member")});
             if (!memberName) {
@@ -897,7 +888,7 @@ export async function saveFile(doc: vscode.TextDocument, datasetProvider: IZoweT
 
     // If not a member
     let label = doc.fileName.substring(doc.fileName.lastIndexOf(path.sep) + 1,
-        checkForAddedSuffix(doc.fileName) ? doc.fileName.lastIndexOf(".") : doc.fileName.length);
+        utils.checkForAddedSuffix(doc.fileName) ? doc.fileName.lastIndexOf(".") : doc.fileName.length);
     label = label.toUpperCase();
     globals.LOG.debug(localize("saveFile.log.debug.saving", "Saving file ") + label);
     if (!label.includes("(")) {
@@ -916,10 +907,10 @@ export async function saveFile(doc: vscode.TextDocument, datasetProvider: IZoweT
     let nodes: IZoweNodeType[];
     if (!sesNode || sesNode.children.length === 0) {
         // saving from favorites
-        nodes = concatChildNodes(datasetProvider.mFavorites);
+        nodes = utils.concatChildNodes(datasetProvider.mFavorites);
     } else {
         // saving from session
-        nodes = concatChildNodes([sesNode]);
+        nodes = utils.concatChildNodes([sesNode]);
     }
     node = nodes.find((zNode) => {
         if (contextually.isDsMember(zNode)) {
@@ -962,7 +953,7 @@ export async function saveFile(doc: vscode.TextDocument, datasetProvider: IZoweT
         } else if (!uploadResponse.success && uploadResponse.commandResponse.includes(
             localize("saveFile.error.ZosmfEtagMismatchError", "Rest API failure with HTTP(S) status 412"))) {
             if (globals.ISTHEIA) {
-                await willForceUpload(node, doc, label, node ? node.getProfile(): profile);
+                await utils.willForceUpload(node, doc, label, node ? node.getProfile(): profile);
             } else {
                 const oldDoc = doc;
                 const oldDocText = oldDoc.getText();

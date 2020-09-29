@@ -13,11 +13,11 @@ import * as vscode from "vscode";
 import * as jobUtils from "../job/utils";
 import * as globals from "../globals";
 import { ZosmfSession, IJob } from "@zowe/cli";
-import { IProfileLoaded, Logger, Session } from "@zowe/imperative";
+import * as imperative from "@zowe/imperative";
 import { Profiles, ValidProfileEnum } from "../Profiles";
 import { Job } from "./ZoweJobNode";
-import { getAppName, sortTreeItems, labelRefresh } from "../shared/utils";
-import { FilterItem, FilterDescriptor, resolveQuickPickHelper, errorHandling } from "../utils";
+import * as sharedUtils from "../shared/utils";
+import * as utils from "../utils";
 import { IZoweTree } from "../api/IZoweTree";
 import { IZoweJobTreeNode } from "../api/IZoweTreeNode";
 import { ZoweTreeProvider } from "../abstract/ZoweTreeProvider";
@@ -39,7 +39,7 @@ const localize: nls.LocalizeFunc = nls.loadMessageBundle();
  * @class ZosJobsProvider
  * @implements {vscode.TreeDataProvider}
  */
-export async function createJobsTree(log: Logger) {
+export async function createJobsTree(log: imperative.Logger) {
     const tree = new ZosJobsProvider();
     await tree.initializeJobsTree(log);
     await tree.addSession();
@@ -151,7 +151,7 @@ export class ZosJobsProvider extends ZoweTreeProvider implements IZoweTree<IZowe
         const setting = PersistentFilters.getDirectValue("Zowe-Automatic-Validation") as boolean;
         // Loads profile associated with passed sessionName, default if none passed
         if (sessionName) {
-            const theProfile: IProfileLoaded = Profiles.getInstance().loadNamedProfile(sessionName);
+            const theProfile: imperative.IProfileLoaded = Profiles.getInstance().loadNamedProfile(sessionName);
             if (theProfile) {
                 this.addSingleSession(theProfile);
             }
@@ -162,7 +162,7 @@ export class ZosJobsProvider extends ZoweTreeProvider implements IZoweTree<IZowe
                 }
              }
         } else {
-            const allProfiles: IProfileLoaded[] = Profiles.getInstance().allProfiles;
+            const allProfiles: imperative.IProfileLoaded[] = Profiles.getInstance().allProfiles;
             for (const sessionProfile of allProfiles) {
                 // If session is already added, do nothing
                 if (this.mSessionNodes.find((tempNode) => tempNode.label.trim() === sessionProfile.name)) {
@@ -194,7 +194,7 @@ export class ZosJobsProvider extends ZoweTreeProvider implements IZoweTree<IZowe
                 localize("deleteJob.delete", " deleted"));
             this.removeFavorite(this.createJobsFavorite(node));
         } catch (error) {
-            await errorHandling(error, node.getProfileName(), error.message);
+            await utils.errorHandling(error, node.getProfileName(), error.message);
         }
     }
 
@@ -229,7 +229,7 @@ export class ZosJobsProvider extends ZoweTreeProvider implements IZoweTree<IZowe
      * Initialize the favorites and history information
      * @param log - Logger
      */
-    public async initializeJobsTree(log: Logger) {
+    public async initializeJobsTree(log: imperative.Logger) {
         this.log = log;
         this.log.debug(localize("initializeJobsTree.log.debug", "Initializing profiles with jobs favorites."));
         const lines: string[] = this.mHistory.readFavorites();
@@ -287,11 +287,11 @@ export class ZosJobsProvider extends ZoweTreeProvider implements IZoweTree<IZowe
      * @param log
      * @param parentNode
      */
-    public async loadProfilesForFavorites(log: Logger, parentNode: IZoweJobTreeNode ) {
+    public async loadProfilesForFavorites(log: imperative.Logger, parentNode: IZoweJobTreeNode ) {
         const profileName = parentNode.label;
         const updatedFavsForProfile: IZoweJobTreeNode[] = [];
-        let profile: IProfileLoaded;
-        let session: Session;
+        let profile: imperative.IProfileLoaded;
+        let session: imperative.Session;
         this.log = log;
         this.log.debug(localize("loadProfilesForFavorites.log.debug", "Loading profile: {0} for jobs favorites", profileName));
         // Load profile for parent profile node in this.mFavorites array
@@ -310,8 +310,8 @@ export class ZosJobsProvider extends ZoweTreeProvider implements IZoweTree<IZowe
                     ". To resolve this, you can create a profile with this name, ") +
                 localize("initializeJobsFavorites.error.profile3",
                     "or remove the favorites with this profile name from the Zowe-Jobs-Persistent setting, which can be found in your ") +
-                getAppName(globals.ISTHEIA) + localize("initializeJobsFavorites.error.profile4", " user settings.");
-                errorHandling(error, null, errMessage);
+                    sharedUtils.getAppName(globals.ISTHEIA) + localize("initializeJobsFavorites.error.profile4", " user settings.");
+                utils.errorHandling(error, null, errMessage);
             }
         }
         profile = parentNode.getProfile();
@@ -373,8 +373,8 @@ export class ZosJobsProvider extends ZoweTreeProvider implements IZoweTree<IZowe
         }
         if (!profileNodeInFavorites.children.find((tempNode) => tempNode.label === favJob.label)) {
             profileNodeInFavorites.children.push(favJob);
-            sortTreeItems(profileNodeInFavorites.children, globals.JOBS_SESSION_CONTEXT + globals.FAV_SUFFIX);
-            sortTreeItems(this.mFavorites, globals.FAV_PROFILE_CONTEXT);
+            sharedUtils.sortTreeItems(profileNodeInFavorites.children, globals.JOBS_SESSION_CONTEXT + globals.FAV_SUFFIX);
+            sharedUtils.sortTreeItems(this.mFavorites, globals.FAV_PROFILE_CONTEXT);
             await this.updateFavorites();
             this.refreshElement(this.mFavoriteSession);
         }
@@ -422,11 +422,10 @@ export class ZosJobsProvider extends ZoweTreeProvider implements IZoweTree<IZowe
         let searchCriteria: string = "";
         const hasHistory = this.mHistory.getSearchHistory().length > 0;
         await this.checkCurrentProfile(node);
-        if ((Profiles.getInstance().validProfile === ValidProfileEnum.VALID) ||
-        (Profiles.getInstance().validProfile === ValidProfileEnum.UNVERIFIED)) {
+        if (!(Profiles.getInstance().validProfile === ValidProfileEnum.INVALID)) {
             if (contextually.isSessionNotFav(node)) { // This is the profile object context
                 if (hasHistory) { // Check if user has created some history
-                    const items: vscode.QuickPickItem[] = this.mHistory.getSearchHistory().map((element) => new FilterItem(element));
+                    const items: vscode.QuickPickItem[] = this.mHistory.getSearchHistory().map((element) => new utils.FilterItem(element));
                     if (globals.ISTHEIA) { // Theia doesn't work properly when directly creating a QuickPick
                         const options1: vscode.QuickPickOptions = {
                             placeHolder: localize("searchHistory.options.prompt", "Select a filter")
@@ -444,13 +443,13 @@ export class ZosJobsProvider extends ZoweTreeProvider implements IZoweTree<IZowe
                         quickpick.placeholder = localize("searchHistory.options.prompt", "Select a filter");
                         quickpick.ignoreFocusOut = true;
                         quickpick.show();
-                        choice = await resolveQuickPickHelper(quickpick);
+                        choice = await utils.resolveQuickPickHelper(quickpick);
                         quickpick.hide();
                         if (!choice) {
                             vscode.window.showInformationMessage(localize("enterPattern.pattern", "No selection made."));
                             return;
                         }
-                        if (choice instanceof FilterDescriptor) {
+                        if (choice instanceof utils.FilterDescriptor) {
                             if (quickpick.value.length > 0) {
                                 searchCriteria = this.interpretFreeform(quickpick.value);
                             }
@@ -546,7 +545,7 @@ export class ZosJobsProvider extends ZoweTreeProvider implements IZoweTree<IZowe
             if (icon) {
                 node.iconPath = icon.path;
             }
-            labelRefresh(node);
+            sharedUtils.labelRefresh(node);
             node.dirty = true;
             this.refreshElement(node);
             this.addSearchHistory(searchCriteria);
@@ -675,7 +674,7 @@ export class ZosJobsProvider extends ZoweTreeProvider implements IZoweTree<IZowe
      * Adds a single session to the jobs tree
      *
      */
-    private async addSingleSession(zosmfProfile: IProfileLoaded) {
+    private async addSingleSession(zosmfProfile: imperative.IProfileLoaded) {
         if (zosmfProfile) {
             // If session is already added, do nothing
             if (this.mSessionNodes.find((tempNode) => tempNode.label.trim() === zosmfProfile.name)) {

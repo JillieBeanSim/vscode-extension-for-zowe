@@ -11,11 +11,11 @@
 
 import * as zowe from "@zowe/cli";
 import * as vscode from "vscode";
-import { IProfileLoaded, ISession, Session, IProfile } from "@zowe/imperative";
+import * as imperative from "@zowe/imperative";
 import * as globals from "../globals";
 import { Profiles, ValidProfileEnum } from "../Profiles";
 import { PersistentFilters } from "../PersistentFilters";
-import { FilterDescriptor, FilterItem, resolveQuickPickHelper, errorHandling } from "../utils";
+import * as utils from "../utils";
 import { IZoweTreeNode } from "../api/IZoweTreeNode";
 import * as nls from "vscode-nls";
 
@@ -64,11 +64,11 @@ export class MvsCommandHandler {
      * @param session the session the command is to run against (optional) user is prompted if not supplied
      * @param command the command string (optional) user is prompted if not supplied
      */
-    public async issueMvsCommand(session?: Session, command?: string, node?: IZoweTreeNode) {
-        let zosmfProfile: IProfileLoaded;
+    public async issueMvsCommand(session?: imperative.Session, command?: string, node?: IZoweTreeNode) {
+        let zosmfProfile: imperative.IProfileLoaded;
         if (!session) {
             const profiles = Profiles.getInstance();
-            const allProfiles: IProfileLoaded[] = profiles.allProfiles;
+            const allProfiles: imperative.IProfileLoaded[] = profiles.allProfiles;
             const profileNamesList = allProfiles.map((temprofile) => {
                 return temprofile.name;
             });
@@ -93,10 +93,9 @@ export class MvsCommandHandler {
             zosmfProfile = node.getProfile();
         }
         await Profiles.getInstance().checkCurrentProfile(zosmfProfile);
-        if ((Profiles.getInstance().validProfile === ValidProfileEnum.VALID) ||
-        (Profiles.getInstance().validProfile === ValidProfileEnum.UNVERIFIED)) {
-            const updProfile = zosmfProfile.profile as ISession;
-            session = zowe.ZosmfSession.createBasicZosmfSession(updProfile as IProfile);
+        if (!(Profiles.getInstance().validProfile === ValidProfileEnum.INVALID)) {
+            const updProfile = zosmfProfile.profile as imperative.ISession;
+            session = zowe.ZosmfSession.createBasicZosmfSession(updProfile as imperative.IProfile);
             let command1: string = command;
             if (!command) {
                 command1 = await this.getQuickPick(session && session.ISession ? session.ISession.hostname : "unknown");
@@ -112,8 +111,8 @@ export class MvsCommandHandler {
         let response = "";
         const alwaysEdit = PersistentFilters.getDirectValue("Zowe Commands: Always edit") as boolean;
         if (this.history.getSearchHistory().length > 0) {
-            const createPick = new FilterDescriptor(MvsCommandHandler.defaultDialogText);
-            const items: vscode.QuickPickItem[] = this.history.getSearchHistory().map((element) => new FilterItem(element));
+            const createPick = new utils.FilterDescriptor(MvsCommandHandler.defaultDialogText);
+            const items: vscode.QuickPickItem[] = this.history.getSearchHistory().map((element) => new utils.FilterItem(element));
             if (globals.ISTHEIA) {
                 const options1: vscode.QuickPickOptions = {
                     placeHolder: localize("issueMvsCommand.command.hostname", "Select a command to run against ") + hostname +
@@ -137,13 +136,13 @@ export class MvsCommandHandler {
                 quickpick.items = [createPick, ...items];
                 quickpick.ignoreFocusOut = true;
                 quickpick.show();
-                const choice = await resolveQuickPickHelper(quickpick);
+                const choice = await utils.resolveQuickPickHelper(quickpick);
                 quickpick.hide();
                 if (!choice) {
                     vscode.window.showInformationMessage(localize("issueMvsCommand.options.noselection", "No selection made."));
                     return;
                 }
-                if (choice instanceof FilterDescriptor) {
+                if (choice instanceof utils.FilterDescriptor) {
                     if (quickpick.value) {
                         response = quickpick.value;
                     }
@@ -175,7 +174,7 @@ export class MvsCommandHandler {
      * @param session The Session object
      * @param command the command string
      */
-    private async issueCommand(session: Session, command: string) {
+    private async issueCommand(session: imperative.Session, command: string) {
         try {
             if (command) {
                 // If the user has started their command with a / then remove it
@@ -195,7 +194,7 @@ export class MvsCommandHandler {
                 }
             }
         } catch (error) {
-            await errorHandling(error, null, error.message);
+            await utils.errorHandling(error, null, error.message);
         }
         this.history.addSearchHistory(command);
     }

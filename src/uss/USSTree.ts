@@ -12,8 +12,8 @@
 import * as vscode from "vscode";
 import * as globals from "../globals";
 import * as path from "path";
-import { IProfileLoaded, Logger, Session } from "@zowe/imperative";
-import { FilterItem, FilterDescriptor, resolveQuickPickHelper, errorHandling } from "../utils";
+import * as imperative from "@zowe/imperative";
+import * as utils from "../utils";
 import { sortTreeItems, getAppName } from "../shared/utils";
 import { IZoweTree } from "../api/IZoweTree";
 import { IZoweUSSTreeNode } from "../api/IZoweTreeNode";
@@ -36,7 +36,7 @@ const localize: nls.LocalizeFunc = nls.loadMessageBundle();
  *
  * @export
  */
-export async function createUSSTree(log: Logger) {
+export async function createUSSTree(log: imperative.Logger) {
     const tree = new USSTree();
     await tree.initializeFavorites(log);
     await tree.addSession();
@@ -125,7 +125,7 @@ export class USSTree extends ZoweTreeProvider implements IZoweTree<IZoweUSSTreeN
                     this.addFavorite(oldFavorite);
                 }
             } catch (err) {
-                errorHandling(err, originalNode.mProfileName, localize("renameUSSNode.error", "Unable to rename node: ") + err.message);
+                utils.errorHandling(err, originalNode.mProfileName, localize("renameUSSNode.error", "Unable to rename node: ") + err.message);
                 throw (err);
             }
         }
@@ -219,7 +219,7 @@ export class USSTree extends ZoweTreeProvider implements IZoweTree<IZoweUSSTreeN
         const setting = PersistentFilters.getDirectValue("Zowe-Automatic-Validation") as boolean;
         // Loads profile associated with passed sessionName, persisted profiles or default if none passed
         if (sessionName) {
-            const profile: IProfileLoaded = Profiles.getInstance().loadNamedProfile(sessionName);
+            const profile: imperative.IProfileLoaded = Profiles.getInstance().loadNamedProfile(sessionName);
             if (profile) {
                 this.addSingleSession(profile);
             }
@@ -230,7 +230,7 @@ export class USSTree extends ZoweTreeProvider implements IZoweTree<IZoweUSSTreeN
                 }
             }
         } else {
-            const allProfiles: IProfileLoaded[] = Profiles.getInstance().allProfiles;
+            const allProfiles: imperative.IProfileLoaded[] = Profiles.getInstance().allProfiles;
             for (const theProfile of allProfiles) {
                 // If session is already added, do nothing
                 if (this.mSessionNodes.find((tempNode) => tempNode.label.trim() === theProfile.name)) {
@@ -396,13 +396,12 @@ export class USSTree extends ZoweTreeProvider implements IZoweTree<IZoweUSSTreeN
         let sessionNode = node.getSessionNode();
         let remotepath: string;
         await this.checkCurrentProfile(node);
-        if ((Profiles.getInstance().validProfile === ValidProfileEnum.VALID) ||
-        (Profiles.getInstance().validProfile === ValidProfileEnum.UNVERIFIED)) {
+        if (!(Profiles.getInstance().validProfile === ValidProfileEnum.INVALID)) {
             if (contextually.isSessionNotFav(node)) {
                 if (this.mHistory.getSearchHistory().length > 0) {
 
-                    const createPick = new FilterDescriptor(USSTree.defaultDialogText);
-                    const items: vscode.QuickPickItem[] = this.mHistory.getSearchHistory().map((element) => new FilterItem(element));
+                    const createPick = new utils.FilterDescriptor(USSTree.defaultDialogText);
+                    const items: vscode.QuickPickItem[] = this.mHistory.getSearchHistory().map((element) => new utils.FilterItem(element));
                     if (globals.ISTHEIA) {
                         const options1: vscode.QuickPickOptions = {
                             placeHolder: localize("searchHistory.options.prompt", "Select a filter")
@@ -420,13 +419,13 @@ export class USSTree extends ZoweTreeProvider implements IZoweTree<IZoweUSSTreeN
                         quickpick.items = [createPick, ...items];
                         quickpick.ignoreFocusOut = true;
                         quickpick.show();
-                        const choice = await resolveQuickPickHelper(quickpick);
+                        const choice = await utils.resolveQuickPickHelper(quickpick);
                         quickpick.hide();
                         if (!choice) {
                             vscode.window.showInformationMessage(localize("enterPattern.pattern", "No selection made."));
                             return;
                         }
-                        if (choice instanceof FilterDescriptor) {
+                        if (choice instanceof utils.FilterDescriptor) {
                             if (quickpick.value) {
                                 remotepath = quickpick.value;
                             }
@@ -510,7 +509,7 @@ export class USSTree extends ZoweTreeProvider implements IZoweTree<IZoweUSSTreeN
      * Profile loading only occurs in loadProfilesForFavorites when the profile node in Favorites is clicked on.
      * @param log
      */
-    public async initializeFavorites(log: Logger) {
+    public async initializeFavorites(log: imperative.Logger) {
         this.log = log;
         this.log.debug(localize("initializeFavorites.log.debug", "Initializing profiles with USS favorites."));
         const lines: string[] = this.mHistory.readFavorites();
@@ -575,11 +574,11 @@ export class USSTree extends ZoweTreeProvider implements IZoweTree<IZoweUSSTreeN
      * @param log
      * @param parentNode
      */
-    public async loadProfilesForFavorites(log: Logger, parentNode: IZoweUSSTreeNode) {
+    public async loadProfilesForFavorites(log: imperative.Logger, parentNode: IZoweUSSTreeNode) {
         const profileName = parentNode.label;
         const updatedFavsForProfile: IZoweUSSTreeNode[] = [];
-        let profile: IProfileLoaded;
-        let session: Session;
+        let profile: imperative.IProfileLoaded;
+        let session: imperative.Session;
         this.log = log;
         this.log.debug(localize("loadProfilesForFavorites.log.debug", "Loading profile: {0} for USS favorites", profileName));
         // Load profile for parent profile node in this.mFavorites array
@@ -602,7 +601,7 @@ export class USSTree extends ZoweTreeProvider implements IZoweTree<IZoweUSSTreeN
                     localize("initializeUSSFavorites.error.profile3",
                     "or remove the favorites with this profile name from the Zowe-USS-Persistent setting, which can be found in your ") +
                     getAppName(globals.ISTHEIA) + localize("initializeUSSFavorites.error.profile4", " user settings.");
-                errorHandling(error, null, errMessage);
+                utils.errorHandling(error, null, errMessage);
                 return;
             }
         }
@@ -670,7 +669,7 @@ export class USSTree extends ZoweTreeProvider implements IZoweTree<IZoweUSSTreeN
      * Adds a single session to the USS tree
      *
      */
-    private async addSingleSession(profile: IProfileLoaded) {
+    private async addSingleSession(profile: imperative.IProfileLoaded) {
         if (profile) {
             // If session is already added, do nothing
             if (this.mSessionNodes.find((tempNode) => tempNode.label.trim() === profile.name)) {

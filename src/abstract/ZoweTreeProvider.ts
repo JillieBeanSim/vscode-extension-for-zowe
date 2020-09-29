@@ -11,13 +11,13 @@
 
 import * as vscode from "vscode";
 import * as globals from "../globals";
-import { Logger, IProfile, ISession  } from "@zowe/imperative";
+import * as imperative from "@zowe/imperative";
 import { PersistentFilters } from "../PersistentFilters";
 import { OwnerFilterDescriptor } from "../job/utils";
-import { getIconByNode, getIconById, IconId } from "../generators/icons";
+import * as icons from "../generators/icons";
 import { Profiles } from "../Profiles";
-import { setProfile, setSession, errorHandling } from "../utils";
-import { IZoweTreeNode, IZoweDatasetTreeNode, IZoweNodeType } from "../api/IZoweTreeNode";
+import * as utils from "../utils";
+import * as treeNode from "../api/IZoweTreeNode";
 import { IZoweTree } from "../api/IZoweTree";
 import * as nls from "vscode-nls";
 
@@ -29,15 +29,16 @@ const localize: nls.LocalizeFunc = nls.loadMessageBundle();
 export class ZoweTreeProvider {
 
     // Event Emitters used to notify subscribers that the refresh event has fired
-    public mOnDidChangeTreeData: vscode.EventEmitter<IZoweTreeNode | undefined> = new vscode.EventEmitter<IZoweTreeNode | undefined>();
-    public readonly onDidChangeTreeData: vscode.Event<IZoweTreeNode | undefined> = this.mOnDidChangeTreeData.event;
+    // tslint:disable-next-line:max-line-length
+    public mOnDidChangeTreeData: vscode.EventEmitter<treeNode.IZoweTreeNode | undefined> = new vscode.EventEmitter<treeNode.IZoweTreeNode | undefined>();
+    public readonly onDidChangeTreeData: vscode.Event<treeNode.IZoweTreeNode | undefined> = this.mOnDidChangeTreeData.event;
     public createOwner = new OwnerFilterDescriptor();
 
     protected mHistory: PersistentFilters;
-    protected log: Logger = Logger.getAppLogger();
+    protected log: imperative.Logger = imperative.Logger.getAppLogger();
     protected validProfile: number = -1;
 
-    constructor(protected persistenceSchema: globals.PersistenceSchemaEnum, public mFavoriteSession: IZoweTreeNode) {
+    constructor(protected persistenceSchema: globals.PersistenceSchemaEnum, public mFavoriteSession: treeNode.IZoweTreeNode) {
         this.mHistory = new PersistentFilters(this.persistenceSchema);
     }
 
@@ -47,11 +48,11 @@ export class ZoweTreeProvider {
      * @param {IZoweTreeNode} element
      * @returns {vscode.TreeItem}
      */
-    public getTreeItem(element: IZoweTreeNode): vscode.TreeItem | Thenable<vscode.TreeItem> {
+    public getTreeItem(element: treeNode.IZoweTreeNode): vscode.TreeItem | Thenable<vscode.TreeItem> {
         return element;
     }
 
-    public getParent(element: IZoweTreeNode): IZoweTreeNode {
+    public getParent(element: treeNode.IZoweTreeNode): treeNode.IZoweTreeNode {
         return element.getParent();
     }
 
@@ -60,7 +61,7 @@ export class ZoweTreeProvider {
      *
      * @param {IZoweTreeNode}
      */
-    public setItem(treeView: vscode.TreeView<IZoweTreeNode>, item: IZoweTreeNode) {
+    public setItem(treeView: vscode.TreeView<treeNode.IZoweTreeNode>, item: treeNode.IZoweTreeNode) {
         treeView.reveal(item, {select: true, focus: true});
     }
 
@@ -68,7 +69,7 @@ export class ZoweTreeProvider {
      * Called whenever the tree needs to be refreshed, and fires the data change event
      *
      */
-    public refreshElement(element: IZoweDatasetTreeNode): void {
+    public refreshElement(element: treeNode.IZoweDatasetTreeNode): void {
         element.dirty = true;
         this.mOnDidChangeTreeData.fire(element);
     }
@@ -87,12 +88,12 @@ export class ZoweTreeProvider {
      * @param element the node being flipped
      * @param isOpen the intended state of the the tree view provider, true or false
      */
-    public async flipState(element: IZoweTreeNode, isOpen: boolean = false) {
+    public async flipState(element: treeNode.IZoweTreeNode, isOpen: boolean = false) {
         if (element.contextValue.includes("session")) {
             this.checkCurrentProfile(element);
         }
         element.collapsibleState = isOpen ? vscode.TreeItemCollapsibleState.Expanded : vscode.TreeItemCollapsibleState.Collapsed;
-        const icon = getIconByNode(element);
+        const icon = icons.getIconByNode(element);
         if (icon) {
             element.iconPath = icon.path;
         }
@@ -127,30 +128,30 @@ export class ZoweTreeProvider {
         }
     }
 
-    public findNonFavoritedNode(element: IZoweTreeNode) {
+    public findNonFavoritedNode(element: treeNode.IZoweTreeNode) {
         return undefined;
     }
 
-    public findFavoritedNode(element: IZoweTreeNode) {
+    public findFavoritedNode(element: treeNode.IZoweTreeNode) {
         return undefined;
     }
-    public renameFavorite(node: IZoweTreeNode, newLabel: string) {
+    public renameFavorite(node: treeNode.IZoweTreeNode, newLabel: string) {
         return undefined;
     }
     public renameNode(profile: string, beforeDataSetName: string, afterDataSetName: string) {
         return undefined;
     }
 
-    public async editSession(node: IZoweTreeNode) {
+    public async editSession(node: treeNode.IZoweTreeNode) {
         const profile = node.getProfile();
         const profileName = node.getProfileName();
         // Check what happens is inactive
         await Profiles.getInstance().getProfileSetting(profile);
         const EditSession = await Profiles.getInstance().editSession(profile, profileName);
         if (EditSession) {
-            node.getProfile().profile = EditSession as IProfile;
-            await setProfile(node, EditSession as IProfile);
-            await setSession(node, EditSession as ISession);
+            node.getProfile().profile = EditSession as imperative.IProfile;
+            await utils.setProfile(node, EditSession as imperative.IProfile);
+            await utils.setSession(node, EditSession as imperative.ISession);
             this.refresh();
         }
         try {
@@ -166,12 +167,12 @@ export class ZoweTreeProvider {
 
             await this.checkCurrentProfile(node);
         } catch (error) {
-            await errorHandling(error);
+            await utils.errorHandling(error);
         }
 
     }
 
-    public async checkCurrentProfile(node: IZoweTreeNode) {
+    public async checkCurrentProfile(node: treeNode.IZoweTreeNode) {
         const profile = node.getProfile();
         const profileStatus = await Profiles.getInstance().checkCurrentProfile(profile);
         if (profileStatus.status === "inactive") {
@@ -180,13 +181,13 @@ export class ZoweTreeProvider {
                 if (node.contextValue.toLowerCase().indexOf("inactive") === -1) {
                     node.contextValue = node.contextValue + globals.INACTIVE_CONTEXT;
                 }
-                const inactiveIcon = getIconById(IconId.sessionInactive);
+                const inactiveIcon = icons.getIconById(icons.IconId.sessionInactive);
                 if (inactiveIcon) {
                     node.iconPath = inactiveIcon.path;
                 }
             }
 
-            await errorHandling(localize("validateProfiles.invalid1", "Profile Name ") +
+            await utils.errorHandling(localize("validateProfiles.invalid1", "Profile Name ") +
                 (profile.name) +
                 localize("validateProfiles.invalid2",
                 " is inactive. Please check if your Zowe server is active or if the URL and port in your profile is correct."));
@@ -200,7 +201,7 @@ export class ZoweTreeProvider {
                 if (node.contextValue.toLowerCase().indexOf("active") === -1) {
                     node.contextValue = node.contextValue + globals.ACTIVE_CONTEXT;
                 }
-                const activeIcon = getIconById(IconId.sessionActive);
+                const activeIcon = icons.getIconById(icons.IconId.sessionActive);
                 if (activeIcon) {
                     node.iconPath = activeIcon.path;
                 }
@@ -216,7 +217,7 @@ export class ZoweTreeProvider {
         await this.refresh();
     }
 
-    public async createZoweSession(zoweFileProvider: IZoweTree<IZoweNodeType>) {
+    public async createZoweSession(zoweFileProvider: IZoweTree<treeNode.IZoweNodeType>) {
         await Profiles.getInstance().createZoweSession(zoweFileProvider);
     }
 

@@ -9,16 +9,16 @@
 *                                                                                 *
 */
 
-import { IProfileLoaded, Logger, CliProfileManager, IProfile, ISession, IUpdateProfileFromCliArgs } from "@zowe/imperative";
+import * as imperative from "@zowe/imperative";
 import * as path from "path";
 import { URL } from "url";
 import * as vscode from "vscode";
 import * as zowe from "@zowe/cli";
 import * as globals from "./globals";
 import { ZoweExplorerApiRegister } from "./api/ZoweExplorerApiRegister";
-import { errorHandling, getZoweDir, FilterDescriptor, FilterItem, resolveQuickPickHelper } from "./utils";
+import * as utils from "./utils";
 import { IZoweTree } from "./api/IZoweTree";
-import { IZoweNodeType, IZoweUSSTreeNode, IZoweDatasetTreeNode, IZoweJobTreeNode, IZoweTreeNode } from "./api/IZoweTreeNode";
+import * as treeNode from "./api/IZoweTreeNode";
 import * as nls from "vscode-nls";
 
 // Set up localization
@@ -50,7 +50,7 @@ export enum ValidProfileEnum {
 }
 export class Profiles {
     // Processing stops if there are no profiles detected
-    public static async createInstance(log: Logger): Promise<Profiles> {
+    public static async createInstance(log: imperative.Logger): Promise<Profiles> {
         Profiles.loader = new Profiles(log);
         await Profiles.loader.refresh();
         return Profiles.loader;
@@ -64,22 +64,22 @@ export class Profiles {
 
     public profilesForValidation: IProfileValidation[] = [];
     public profilesValidationSetting: IValidationSetting[] = [];
-    public allProfiles: IProfileLoaded[] = [];
-    public loadedProfile: IProfileLoaded;
+    public allProfiles: imperative.IProfileLoaded[] = [];
+    public loadedProfile: imperative.IProfileLoaded;
     public validProfile: ValidProfileEnum = ValidProfileEnum.INVALID;
     private dsSchema: string = "Zowe-DS-Persistent";
     private ussSchema: string = "Zowe-USS-Persistent";
     private jobsSchema: string = "Zowe-Jobs-Persistent";
     private allTypes: string[];
-    private profilesByType = new Map<string, IProfileLoaded[]>();
-    private defaultProfileByType = new Map<string, IProfileLoaded>();
-    private profileManagerByType= new Map<string, CliProfileManager>();
+    private profilesByType = new Map<string, imperative.IProfileLoaded[]>();
+    private defaultProfileByType = new Map<string, imperative.IProfileLoaded>();
+    private profileManagerByType= new Map<string, imperative.CliProfileManager>();
     private usrNme: string;
     private passWrd: string;
     private baseEncd: string;
-    private constructor(private log: Logger) {}
+    private constructor(private log: imperative.Logger) {}
 
-    public async checkCurrentProfile(theProfile: IProfileLoaded) {
+    public async checkCurrentProfile(theProfile: imperative.IProfileLoaded) {
         const profileStatus: IProfileValidation = await this.getProfileSetting(theProfile);
         if (profileStatus.status === "inactive") {
             this.validProfile = ValidProfileEnum.INVALID;
@@ -100,7 +100,7 @@ export class Profiles {
                     this.baseEncd = values[2];
                 }
             } catch (error) {
-                errorHandling(error, theProfile.name,
+                utils.errorHandling(error, theProfile.name,
                     localize("checkCurrentProfile.error", "Error encountered in ") + `checkCurrentProfile.optionalProfiles!`);
                 return profileStatus;
             }
@@ -122,7 +122,7 @@ export class Profiles {
 
     }
 
-    public async getProfileSetting(theProfile: IProfileLoaded): Promise<IProfileValidation> {
+    public async getProfileSetting(theProfile: imperative.IProfileLoaded): Promise<IProfileValidation> {
         let profileStatus: IProfileValidation;
         let found: boolean = false;
         this.profilesValidationSetting.filter(async (instance) => {
@@ -154,13 +154,13 @@ export class Profiles {
         return profileStatus;
     }
 
-    public async disableValidation(node: IZoweNodeType): Promise<IZoweNodeType>{
+    public async disableValidation(node: treeNode.IZoweNodeType): Promise<treeNode.IZoweNodeType>{
         this.disableValidationContext(node);
         return node;
     }
 
-    public async disableValidationContext(node: IZoweNodeType) {
-        const theProfile: IProfileLoaded = node.getProfile();
+    public async disableValidationContext(node: treeNode.IZoweNodeType) {
+        const theProfile: imperative.IProfileLoaded = node.getProfile();
         this.validationArraySetup(theProfile, false);
         if (node.contextValue.includes(`${globals.VALIDATE_SUFFIX}true`)) {
             node.contextValue = node.contextValue.replace(/(_validate=true)/g, "").replace(/(_Active)/g, "").replace(/(_Inactive)/g, "");
@@ -173,13 +173,13 @@ export class Profiles {
         return node;
     }
 
-    public async enableValidation(node: IZoweNodeType): Promise<IZoweNodeType>{
+    public async enableValidation(node: treeNode.IZoweNodeType): Promise<treeNode.IZoweNodeType>{
         this.enableValidationContext(node);
         return node;
     }
 
-    public async enableValidationContext(node: IZoweNodeType) {
-        const theProfile: IProfileLoaded = node.getProfile();
+    public async enableValidationContext(node: treeNode.IZoweNodeType) {
+        const theProfile: imperative.IProfileLoaded = node.getProfile();
         this.validationArraySetup(theProfile, true);
         if (node.contextValue.includes(`${globals.VALIDATE_SUFFIX}false`)) {
             node.contextValue = node.contextValue.replace(/(_validate=false)/g, "").replace(/(_Unverified)/g, "");
@@ -193,7 +193,7 @@ export class Profiles {
         return node;
     }
 
-    public async validationArraySetup(theProfile: IProfileLoaded, validationSetting: boolean): Promise<IValidationSetting> {
+    public async validationArraySetup(theProfile: imperative.IProfileLoaded, validationSetting: boolean): Promise<IValidationSetting> {
         let found: boolean = false;
         let profileSetting: IValidationSetting;
         if (this.profilesValidationSetting.length > 0) {
@@ -232,7 +232,7 @@ export class Profiles {
         return profileSetting;
     }
 
-    public loadNamedProfile(name: string, type?: string): IProfileLoaded {
+    public loadNamedProfile(name: string, type?: string): imperative.IProfileLoaded {
         for (const profile of this.allProfiles) {
             if (profile.name === name && (type ? profile.type === type : true)) {
                 return profile;
@@ -242,11 +242,11 @@ export class Profiles {
             + name + localize("loadNamedProfile.error.period", "."));
     }
 
-    public getDefaultProfile(type: string = "zosmf"): IProfileLoaded {
+    public getDefaultProfile(type: string = "zosmf"): imperative.IProfileLoaded {
         return this.defaultProfileByType.get(type);
     }
 
-    public getProfiles(type: string = "zosmf"): IProfileLoaded[] {
+    public getProfiles(type: string = "zosmf"): imperative.IProfileLoaded[] {
         return this.profilesByType.get(type);
     }
 
@@ -261,7 +261,7 @@ export class Profiles {
             if (profilesForType && profilesForType.length > 0) {
                 this.allProfiles.push(...profilesForType);
                 this.profilesByType.set(type, profilesForType);
-                let defaultProfile: IProfileLoaded;
+                let defaultProfile: imperative.IProfileLoaded;
                 try {
                     defaultProfile = await profileManager.load({ loadDefault: true });
                 } catch (error) {
@@ -340,7 +340,7 @@ export class Profiles {
      * @export
      * @param {USSTree} zoweFileProvider - either the USS, MVS, JES tree
      */
-    public async createZoweSession(zoweFileProvider: IZoweTree<IZoweTreeNode>) {
+    public async createZoweSession(zoweFileProvider: IZoweTree<treeNode.IZoweTreeNode>) {
         const allProfiles = (await Profiles.getInstance()).allProfiles;
         const createNewProfile = "Create a New Connection to z/OS";
         let chosenProfile: string = "";
@@ -371,8 +371,8 @@ export class Profiles {
                 !zoweFileProvider.mSessionNodes.find((sessionNode) => sessionNode.getProfileName() === profileName)
             );
         }
-        const createPick = new FilterDescriptor("\uFF0B " + createNewProfile);
-        const items: vscode.QuickPickItem[] = profileNamesList.map((element) => new FilterItem(element));
+        const createPick = new utils.FilterDescriptor("\uFF0B " + createNewProfile);
+        const items: vscode.QuickPickItem[] = profileNamesList.map((element) => new utils.FilterItem(element));
         const quickpick = vscode.window.createQuickPick();
         const placeholder = localize("addSession.quickPickOption",
             "Choose \"Create new...\" to define a new profile or select an existing profile to Add to the USS Explorer");
@@ -393,13 +393,13 @@ export class Profiles {
             quickpick.placeholder = placeholder;
             quickpick.ignoreFocusOut = true;
             quickpick.show();
-            const choice = await resolveQuickPickHelper(quickpick);
+            const choice = await utils.resolveQuickPickHelper(quickpick);
             quickpick.hide();
             if (!choice) {
                 vscode.window.showInformationMessage(localize("enterPattern.pattern", "No selection made."));
                 return;
             }
-            if (choice instanceof FilterDescriptor) {
+            if (choice instanceof utils.FilterDescriptor) {
                 chosenProfile = "";
             } else {
                 chosenProfile = choice.label;
@@ -428,12 +428,12 @@ export class Profiles {
             globals.LOG.debug(localize("addSession.log.debug.createNewProfile", "User created a new profile"));
             try {
                 newprofile = await Profiles.getInstance().createNewConnection(chosenProfile);
-            } catch (error) { await errorHandling(error, chosenProfile, error.message); }
+            } catch (error) { await utils.errorHandling(error, chosenProfile, error.message); }
             if (newprofile) {
                 try {
                     await Profiles.getInstance().refresh();
                 } catch (error) {
-                    await errorHandling(error, newprofile, error.message);
+                    await utils.errorHandling(error, newprofile, error.message);
                 }
                 await zoweFileProvider.addSession(newprofile);
                 await zoweFileProvider.refresh();
@@ -446,7 +446,7 @@ export class Profiles {
         }
     }
 
-    public async editSession(profileLoaded: IProfileLoaded, profileName: string): Promise<any| undefined> {
+    public async editSession(profileLoaded: imperative.IProfileLoaded, profileName: string): Promise<any| undefined> {
         const editSession = profileLoaded.profile;
         const editURL = editSession.host+ ":" + editSession.port;
         const editUser = editSession.user;
@@ -568,7 +568,7 @@ export class Profiles {
             return updSchemaValues;
 
         } catch (error) {
-            await errorHandling(error.message);
+            await utils.errorHandling(error.message);
         }
     }
 
@@ -734,7 +734,7 @@ export class Profiles {
             vscode.window.showInformationMessage("Profile " + newProfileName + " was created.");
             return newProfileName;
         } catch (error) {
-            await errorHandling(error.message);
+            await utils.errorHandling(error.message);
         }
     }
 
@@ -742,16 +742,16 @@ export class Profiles {
 
         let repromptUser: string;
         let repromptPass: string;
-        let loadProfile: IProfileLoaded;
-        let loadSession: ISession;
+        let loadProfile: imperative.IProfileLoaded;
+        let loadSession: imperative.ISession;
         let newUser: string;
         let newPass: string;
 
         try {
             loadProfile = this.loadNamedProfile(sessName.trim());
-            loadSession = loadProfile.profile as ISession;
+            loadSession = loadProfile.profile as imperative.ISession;
         } catch (error) {
-            await errorHandling(error.message);
+            await utils.errorHandling(error.message);
         }
 
         if (rePrompt) {
@@ -801,13 +801,13 @@ export class Profiles {
                 }
                 return [updSession.ISession.user, updSession.ISession.password, updSession.ISession.base64EncodedAuth];
             } catch (error) {
-                await errorHandling(error.message);
+                await utils.errorHandling(error.message);
             }
         }
     }
 
     public async getDeleteProfile() {
-        const allProfiles: IProfileLoaded[] = this.allProfiles;
+        const allProfiles: imperative.IProfileLoaded[] = this.allProfiles;
         const profileNamesList = allProfiles.map((temprofile) => {
             return temprofile.name;
         });
@@ -833,11 +833,11 @@ export class Profiles {
         return allProfiles.find((temprofile) => temprofile.name === sesName);
     }
 
-    public async deleteProfile(datasetTree: IZoweTree<IZoweDatasetTreeNode>, ussTree: IZoweTree<IZoweUSSTreeNode>,
-                               jobsProvider: IZoweTree<IZoweJobTreeNode>, node?: IZoweNodeType) {
+    public async deleteProfile(datasetTree: IZoweTree<treeNode.IZoweDatasetTreeNode>, ussTree: IZoweTree<treeNode.IZoweUSSTreeNode>,
+                               jobsProvider: IZoweTree<treeNode.IZoweJobTreeNode>, node?: treeNode.IZoweNodeType) {
 
         let deleteLabel: string;
-        let deletedProfile: IProfileLoaded;
+        let deletedProfile: imperative.IProfileLoaded;
         if (!node){
             deletedProfile = await this.getDeleteProfile();
         } else {
@@ -994,8 +994,8 @@ export class Profiles {
         });
     }
 
-    public async directLoad(type: string, name: string): Promise<IProfileLoaded> {
-        let directProfile: IProfileLoaded;
+    public async directLoad(type: string, name: string): Promise<imperative.IProfileLoaded> {
+        let directProfile: imperative.IProfileLoaded;
         const profileManager = await this.getCliProfileManager(type);
         if (profileManager) {
             directProfile = await profileManager.load({ name });
@@ -1003,11 +1003,11 @@ export class Profiles {
         return directProfile;
     }
 
-    public async getCliProfileManager(type: string): Promise<CliProfileManager> {
+    public async getCliProfileManager(type: string): Promise<imperative.CliProfileManager> {
         let profileManager = this.profileManagerByType.get(type);
         if (!profileManager) {
-            profileManager = await new CliProfileManager({
-                profileRootDirectory: path.join(getZoweDir(), "profiles"),
+            profileManager = await new imperative.CliProfileManager({
+                profileRootDirectory: path.join(utils.getZoweDir(), "profiles"),
                 type
             });
             if (profileManager) {
@@ -1019,7 +1019,7 @@ export class Profiles {
         return profileManager;
     }
 
-    public async validateProfiles(theProfile: IProfileLoaded) {
+    public async validateProfiles(theProfile: imperative.IProfileLoaded) {
         let filteredProfile: IProfileValidation;
         let profileStatus;
         const getSessStatus = await ZoweExplorerApiRegister.getInstance().getCommonApi(theProfile);
@@ -1091,7 +1091,7 @@ export class Profiles {
         return filteredProfile;
     }
 
-    private async deletePrompt(deletedProfile: IProfileLoaded) {
+    private async deletePrompt(deletedProfile: imperative.IProfileLoaded) {
         const profileName = deletedProfile.name;
         this.log.debug(localize("deleteProfile.log.debug", "Deleting profile ") + profileName);
         const quickPickOptions: vscode.QuickPickOptions = {
@@ -1111,7 +1111,7 @@ export class Profiles {
             this.deleteProfileOnDisk(deletedProfile);
         } catch (error) {
             this.log.error(localize("deleteProfile.delete.log.error", "Error encountered when deleting profile! ") + JSON.stringify(error));
-            await errorHandling(error, profileName, error.message);
+            await utils.errorHandling(error, profileName, error.message);
             throw error;
         }
 
@@ -1120,7 +1120,7 @@ export class Profiles {
     }
 
     private async deleteProfileOnDisk(ProfileInfo) {
-        let zosmfProfile: IProfile;
+        let zosmfProfile: imperative.IProfile;
         try {
             zosmfProfile = await (await this.getCliProfileManager(ProfileInfo.type))
             .delete({ profile: ProfileInfo, name: ProfileInfo.name, type: ProfileInfo.type });
@@ -1367,7 +1367,7 @@ export class Profiles {
         // Using `IUpdateProfileFromCliArgs` here instead of `IUpdateProfile` is
         // kind of a hack, but necessary to support storing secure credentials
         // until this is fixed: https://github.com/zowe/imperative/issues/379
-        const updateParms: IUpdateProfileFromCliArgs = {
+        const updateParms: imperative.IUpdateProfileFromCliArgs = {
             name: this.loadedProfile.name,
             merge: true,
             // profile: OrigProfileInfo as IProfile
@@ -1381,7 +1381,7 @@ export class Profiles {
     }
 
     private async saveProfile(ProfileInfo, ProfileName, ProfileType) {
-        let newProfile: IProfile;
+        let newProfile: imperative.IProfile;
         try {
             newProfile = await (await this.getCliProfileManager(ProfileType)).save({ profile: ProfileInfo, name: ProfileName, type: ProfileType });
         } catch (error) {

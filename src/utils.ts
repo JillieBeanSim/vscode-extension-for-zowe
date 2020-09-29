@@ -15,7 +15,7 @@ import * as vscode from "vscode";
 import * as globals from "./globals";
 import * as os from "os";
 import * as path from "path";
-import { ISession, IProfile, ImperativeConfig } from "@zowe/imperative";
+import * as imperative from "@zowe/imperative";
 import { Profiles } from "./Profiles";
 import { IZoweTreeNode } from "./api/IZoweTreeNode";
 import * as nls from "vscode-nls";
@@ -75,7 +75,7 @@ export function refreshTree(sessNode: IZoweTreeNode) {
     for (const profNode of allProf) {
         if (sessNode.getProfileName() === profNode.name) {
             setProfile(sessNode, profNode.profile);
-            const SessionProfile = profNode.profile as ISession;
+            const SessionProfile = profNode.profile as imperative.ISession;
             if (sessNode.getSession().ISession !== SessionProfile) {
                 setSession(sessNode, SessionProfile);
             }
@@ -111,24 +111,24 @@ export class FilterDescriptor implements vscode.QuickPickItem {
  * not initialized it we mock a default value.
  */
 export function getZoweDir(): string {
-    ImperativeConfig.instance.loadedConfig = {
+    imperative.ImperativeConfig.instance.loadedConfig = {
         defaultHome: path.join(os.homedir(), ".zowe"),
         envVariablePrefix: "ZOWE"
     };
-    return ImperativeConfig.instance.cliHome;
+    return imperative.ImperativeConfig.instance.cliHome;
 }
 
 /**
  * Function to update the node profile information
  */
-export async function setProfile(node: IZoweTreeNode, profile: IProfile) {
+export async function setProfile(node: IZoweTreeNode, profile: imperative.IProfile) {
     node.getProfile().profile= profile;
 }
 
 /**
  * Function to update the node session information
  */
-export async function setSession(node: IZoweTreeNode, session: ISession) {
+export async function setSession(node: IZoweTreeNode, session: imperative.ISession) {
     node.getSession().ISession.user = session.user;
     node.getSession().ISession.password = session.password;
     node.getSession().ISession.hostname = session.hostname;

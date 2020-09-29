@@ -15,7 +15,7 @@ import * as fs from "fs";
 import * as globals from "../globals";
 import * as path from "path";
 import { ZoweUSSNode } from "./ZoweUSSNode";
-import { labelRefresh, refreshTree, concatChildNodes, willForceUpload, uploadContent } from "../shared/utils";
+import * as utils from "../shared/utils";
 import { errorHandling } from "../utils";
 import { Profiles, ValidProfileEnum } from "../Profiles";
 import { IZoweTree } from "../api/IZoweTree";
@@ -26,7 +26,7 @@ import { Session } from "@zowe/imperative";
 import * as contextually from "../shared/context";
 import { setFileSaved } from "../utils/workspace";
 import * as nls from "vscode-nls";
-import { returnIconState, resetValidationSettings } from "../shared/actions";
+import * as shared from "../shared/actions";
 import { PersistentFilters } from "../PersistentFilters";
 
 // Set up localization
@@ -68,8 +68,7 @@ export async function refreshUSSInTree(node: IZoweUSSTreeNode, ussFileProvider: 
 
 export async function createUSSNodeDialog(node: IZoweUSSTreeNode, ussFileProvider: IZoweTree<IZoweUSSTreeNode>) {
     await ussFileProvider.checkCurrentProfile(node);
-    if ((Profiles.getInstance().validProfile === ValidProfileEnum.VALID) ||
-    (Profiles.getInstance().validProfile === ValidProfileEnum.UNVERIFIED)) {
+    if (!(Profiles.getInstance().validProfile === ValidProfileEnum.INVALID)) {
         const quickPickOptions: vscode.QuickPickOptions = {
             placeHolder: `What would you like to create at ${node.fullPath}?`,
             ignoreFocusOut: true,
@@ -91,12 +90,12 @@ export async function refreshAllUSS(ussFileProvider: IZoweTree<IZoweUSSTreeNode>
     ussFileProvider.mSessionNodes.forEach(async (sessNode) => {
         const setting = await PersistentFilters.getDirectValue("Zowe-Automatic-Validation") as boolean;
         if (contextually.isSession(sessNode)) {
-            labelRefresh(sessNode);
+            utils.labelRefresh(sessNode);
             sessNode.children = [];
             sessNode.dirty = true;
-            refreshTree(sessNode);
-            resetValidationSettings(sessNode, setting);
-            returnIconState(sessNode);
+            utils.refreshTree(sessNode);
+            shared.resetValidationSettings(sessNode, setting);
+            shared.returnIconState(sessNode);
         }
     });
     await ussFileProvider.refresh();
@@ -269,10 +268,10 @@ export async function saveUSSFile(doc: vscode.TextDocument, ussFileProvider: IZo
     let nodes: IZoweUSSTreeNode[];
     if (!sesNode || sesNode.children.length === 0) {
         // saving from favorites
-        nodes = concatChildNodes(ussFileProvider.mFavorites);
+        nodes = utils.concatChildNodes(ussFileProvider.mFavorites);
     } else {
         // saving from session
-        nodes = concatChildNodes([sesNode]);
+        nodes = utils.concatChildNodes([sesNode]);
     }
     node = nodes.find((zNode) => {
         if (contextually.isText(zNode)) {
@@ -300,7 +299,7 @@ export async function saveUSSFile(doc: vscode.TextDocument, ussFileProvider: IZo
             location: vscode.ProgressLocation.Notification,
             title: localize("saveUSSFile.response.title", "Saving file...")
         }, () => {
-            return uploadContent(sesNode, doc, remote, sesNode.getProfile(), binary, etagToUpload, returnEtag);
+            return utils.uploadContent(sesNode, doc, remote, sesNode.getProfile(), binary, etagToUpload, returnEtag);
         });
         if (uploadResponse.success) {
             vscode.window.showInformationMessage(uploadResponse.commandResponse);
@@ -317,7 +316,7 @@ export async function saveUSSFile(doc: vscode.TextDocument, ussFileProvider: IZo
         // TODO: error handling must not be zosmf specific
         if (err.message.includes(localize("saveFile.error.ZosmfEtagMismatchError", "Rest API failure with HTTP(S) status 412"))) {
             if (globals.ISTHEIA) {
-                await willForceUpload(node, doc, remote, node.getProfile(), binary, returnEtag);
+                await utils.willForceUpload(node, doc, remote, node.getProfile(), binary, returnEtag);
             } else {
                 // Store old document text in a separate variable, to be used on merge conflict
                 const oldDocText = doc.getText();

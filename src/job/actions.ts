@@ -10,17 +10,16 @@
 */
 
 import * as vscode from "vscode";
-import * as globals from "../globals";
 import * as zowe from "@zowe/cli";
 import { errorHandling } from "../utils";
-import { labelRefresh, refreshTree } from "../shared/utils";
+import * as utils from "../shared/utils";
 import { Profiles, ValidProfileEnum } from "../Profiles";
 import { IZoweTree } from "../api/IZoweTree";
 import { IZoweJobTreeNode } from "../api/IZoweTreeNode";
 import { ZoweExplorerApiRegister } from "../api/ZoweExplorerApiRegister";
 import { Job } from "./ZoweJobNode";
 import * as contextually from "../shared/context";
-import { returnIconState, resetValidationSettings } from "../shared/actions";
+import * as shared from "../shared/actions";
 import * as nls from "vscode-nls";
 import { encodeJobFile } from "../SpoolProvider";
 import { PersistentFilters } from "../PersistentFilters";
@@ -39,12 +38,12 @@ export async function refreshAllJobs(jobsProvider: IZoweTree<IZoweJobTreeNode>) 
     jobsProvider.mSessionNodes.forEach(async (jobNode) => {
         const setting = await PersistentFilters.getDirectValue("Zowe-Automatic-Validation") as boolean;
         if (contextually.isSession(jobNode)) {
-            labelRefresh(jobNode);
+            utils.labelRefresh(jobNode);
             jobNode.children = [];
             jobNode.dirty = true;
-            refreshTree(jobNode);
-            resetValidationSettings(jobNode, setting);
-            returnIconState(jobNode);
+            utils.refreshTree(jobNode);
+            shared.resetValidationSettings(jobNode, setting);
+            shared.returnIconState(jobNode);
         }
     });
     await jobsProvider.refresh();
@@ -86,8 +85,7 @@ export async function getSpoolContent(jobsProvider: IZoweTree<IZoweJobTreeNode>,
     const zosmfProfile = Profiles.getInstance().loadNamedProfile(session);
     // This has a direct access to Profiles checkcurrentProfile() because I am able to get the profile now.
     await Profiles.getInstance().checkCurrentProfile(zosmfProfile);
-    if ((Profiles.getInstance().validProfile === ValidProfileEnum.VALID) ||
-    (Profiles.getInstance().validProfile === ValidProfileEnum.UNVERIFIED)) {
+    if (!(Profiles.getInstance().validProfile === ValidProfileEnum.INVALID)) {
         try {
             const uri = encodeJobFile(session, spool);
             const document = await vscode.workspace.openTextDocument(uri);
@@ -106,8 +104,7 @@ export async function getSpoolContent(jobsProvider: IZoweTree<IZoweJobTreeNode>,
  */
 export async function refreshJobsServer(node: IZoweJobTreeNode, jobsProvider: IZoweTree<IZoweJobTreeNode>) {
     jobsProvider.checkCurrentProfile(node);
-    if ((Profiles.getInstance().validProfile === ValidProfileEnum.VALID) ||
-    (Profiles.getInstance().validProfile === ValidProfileEnum.UNVERIFIED)) {
+    if (!(Profiles.getInstance().validProfile === ValidProfileEnum.INVALID)) {
         await jobsProvider.refreshElement(node);
     }
 }
